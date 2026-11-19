@@ -165,10 +165,10 @@ are in `/tmp/opcua-bridge-test/`.
 
 ## Further reading
 
-- [corBridge](https://github.com/SEAMWARE/corBridge) - the bridge contract
+- [corBridge](https://github.com/SEAMWARE-cor/corBridge) - the bridge contract
 - coraine: [AssetChannels](https://github.com/SEAMWARE/coraine/blob/main/doc/asset-channels.md),
   [plugin architecture](https://github.com/SEAMWARE/coraine/blob/main/doc/plugin-architecture.md)
-- [corBridgeTemplate](https://github.com/SEAMWARE/corBridgeTemplate) - where this bridge started
+- [corBridgeTemplate](https://github.com/SEAMWARE-cor/corBridgeTemplate) - where this bridge started
 
 ---
 
