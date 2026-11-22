@@ -22,6 +22,7 @@
 // - an endpoint added, a value written - are put in a queue the thread empties between iterations of the
 // client. Nothing a broker thread does waits on the server.
 //
+#include <ctype.h>                                    // isalnum
 #include <math.h>                                     // isfinite
 #include <pthread.h>                                  // pthread_*
 #include <stdarg.h>                                   // va_list
@@ -1084,9 +1085,154 @@ static bool isTypeReference(const UA_NodeId* refTypeP)
 
 // -----------------------------------------------------------------------------
 //
-// walkNode - one node, and what it contains, as the neutral node tree (coraine's AssetChannel.h)
+// argumentIsArray - an argument the method takes an array for: a ValueRank of one or more dimensions (0 is
+// OneOrMoreDimensions); Scalar (-1), Any (-2) and ScalarOrOneDimension (-3) take a scalar
 //
-static void walkNode(Walk* wP, const UA_NodeId* idP, UA_NodeClass nodeClass, const UA_QualifiedName* nameP, const UA_ExpandedNodeId* typeDefP, int depth)
+static bool argumentIsArray(const UA_Argument* argP)
+{
+  return argP->valueRank >= 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// argumentXsType - an argument's DataType as an XML Schema type, the model's valueType; NULL: a DataType a
+// call's input is not converted to (jsonToVariant)
+//
+static const char* argumentXsType(const UA_Argument* argP)
+{
+  const UA_DataType* typeP = UA_findDataType(&argP->dataType);
+
+  if (typeP == NULL)
+    return NULL;
+
+  if (typeP == &UA_TYPES[UA_TYPES_BOOLEAN])  return "xs:boolean";
+  if (typeP == &UA_TYPES[UA_TYPES_STRING])   return "xs:string";
+  if (typeP == &UA_TYPES[UA_TYPES_SBYTE])    return "xs:byte";
+  if (typeP == &UA_TYPES[UA_TYPES_BYTE])     return "xs:unsignedByte";
+  if (typeP == &UA_TYPES[UA_TYPES_INT16])    return "xs:short";
+  if (typeP == &UA_TYPES[UA_TYPES_UINT16])   return "xs:unsignedShort";
+  if (typeP == &UA_TYPES[UA_TYPES_INT32])    return "xs:int";
+  if (typeP == &UA_TYPES[UA_TYPES_UINT32])   return "xs:unsignedInt";
+  if (typeP == &UA_TYPES[UA_TYPES_INT64])    return "xs:long";
+  if (typeP == &UA_TYPES[UA_TYPES_UINT64])   return "xs:unsignedLong";
+  if (typeP == &UA_TYPES[UA_TYPES_FLOAT])    return "xs:float";
+  if (typeP == &UA_TYPES[UA_TYPES_DOUBLE])   return "xs:double";
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bufArguments - a method's arguments as the model's variables: [{ "name", "valueType", "array" }] - valueType
+// left out for a DataType the bridge does not convert; false: such an argument is there
+//
+static bool bufArguments(Buf* bP, const char* member, const UA_Variant* argsP)
+{
+  const UA_Argument* argV  = (const UA_Argument*) argsP->data;
+  size_t             argN  = (argsP->type == &UA_TYPES[UA_TYPES_ARGUMENT]) ? argsP->arrayLength : 0;
+  bool               allOk = true;
+
+  bufPrintf(bP, ",\"%s\":[", member);
+
+  for (size_t ix = 0; ix < argN; ix++)
+  {
+    const char* xsType = argumentXsType(&argV[ix]);
+
+    bufStr(bP, (ix == 0) ? "{\"name\":" : ",{\"name\":");
+    bufUaString(bP, &argV[ix].name);
+
+    if (xsType != NULL)
+    {
+      bufStr(bP, ",\"valueType\":");
+      bufJsonString(bP, xsType, strlen(xsType));
+    }
+    else
+      allOk = false;
+
+    if (argumentIsArray(&argV[ix]) == true)
+      bufStr(bP, ",\"array\":true");
+
+    bufStr(bP, "}");
+  }
+
+  bufStr(bP, "]");
+  return allOk;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bufUrlNodeId - a NodeId as an opcua:// URL has it: as OPC UA writes it, a '/', a '%' and what a URL does
+// not take percent-encoded ("ns=2;s=P17.SetSpeed" as it is) - nodeIdDecode reads it back
+//
+static void bufUrlNodeId(Buf* bP, const char* text)
+{
+  for (const char* cP = text; *cP != 0; cP++)
+  {
+    unsigned char c = (unsigned char) *cP;
+
+    if (isalnum(c) || (strchr("-._~;=:,", c) != NULL))
+      bufAdd(bP, cP, 1);
+    else
+      bufPrintf(bP, "%%%02X", c);
+  }
+}
+
+
+
+static bool methodArguments(const UA_NodeId* methodIdP, const char* which, UA_Variant* vP);   // below, with callRun
+
+
+
+// -----------------------------------------------------------------------------
+//
+// walkMethod - a Method's arguments, and where the bridge calls it: opcua://<object NodeId>/<method NodeId>,
+// the object the one it is in. No endpoint when the method is in no object (an inventory from the method), or
+// an input argument has a DataType the bridge does not convert - a service that cannot run
+//
+static void walkMethod(Walk* wP, const UA_NodeId* idP, const char* idText, const UA_NodeId* objectIdP)
+{
+  Buf*       bP = &wP->b;
+  UA_Variant inArgs;
+  UA_Variant outArgs;
+
+  methodArguments(idP, "InputArguments",  &inArgs);   // not there: a method without input (an empty variant)
+  methodArguments(idP, "OutputArguments", &outArgs);
+
+  bool  callable   = bufArguments(bP, "input", &inArgs);
+  char* objectText = (objectIdP != NULL) ? nodeIdText(objectIdP) : NULL;
+
+  bufArguments(bP, "output", &outArgs);
+
+  if ((callable == true) && (objectText != NULL) && (idText != NULL))
+  {
+    bufStr(bP, ",\"endpoint\":\"opcua://");
+    bufUrlNodeId(bP, objectText);
+    bufStr(bP, "/");
+    bufUrlNodeId(bP, idText);
+    bufStr(bP, "\"");
+  }
+
+  if (objectText != NULL)
+    free(objectText);
+
+  UA_Variant_clear(&inArgs);
+  UA_Variant_clear(&outArgs);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// walkNode - one node, and what it contains, as the neutral node tree (coraine's AssetChannel.h); parentIdP the
+// node it is in (NULL: the walk starts at it)
+//
+static void walkNode(Walk* wP, const UA_NodeId* idP, const UA_NodeId* parentIdP, UA_NodeClass nodeClass, const UA_QualifiedName* nameP, const UA_ExpandedNodeId* typeDefP, int depth)
 {
   Buf* bP = &wP->b;
 
@@ -1271,6 +1417,8 @@ static void walkNode(Walk* wP, const UA_NodeId* idP, UA_NodeClass nodeClass, con
 
     walkVariable(wP, idP, typeP, writable);
   }
+  else if (nodeClass == UA_NODECLASS_METHOD)
+    walkMethod(wP, idP, idText, parentIdP);
   else if (browsed == true)
   {
     //
@@ -1306,7 +1454,7 @@ static void walkNode(Walk* wP, const UA_NodeId* idP, UA_NodeClass nodeClass, con
           continue;
 
         bufStr(bP, firstChild ? ",\"children\":[" : ",");
-        walkNode(wP, &rP->nodeId.nodeId, rP->nodeClass, &rP->browseName, &rP->typeDefinition, depth + 1);
+        walkNode(wP, &rP->nodeId.nodeId, idP, rP->nodeClass, &rP->browseName, &rP->typeDefinition, depth + 1);
         firstChild = false;
       }
     }
@@ -1399,7 +1547,7 @@ static bool modelSetup(Endpoint* eP)
 
   walkVisited(&w, &eP->nodeId);
   bufStr(&w.b, "{\"model\":");
-  walkNode(&w, &eP->nodeId, UA_NODECLASS_OBJECT, &name, &typeDefX, 0);
+  walkNode(&w, &eP->nodeId, NULL, UA_NODECLASS_OBJECT, &name, &typeDefX, 0);
   bufStr(&w.b, "}");
 
   UA_QualifiedName_clear(&name);
@@ -1642,7 +1790,7 @@ static void inventoryRun(InventoryReq* reqP)
   w.maxDepth  = reqP->depth;
 
   walkVisited(&w, &from);
-  walkNode(&w, &from, nodeClass, &name, &typeDef, 0);
+  walkNode(&w, &from, NULL, nodeClass, &name, &typeDef, 0);
 
   if ((w.b.failed == false) && (w.b.s != NULL))
   {
@@ -2411,8 +2559,8 @@ static bool scalarText(CorNode* valueP, char* text, int size)
 
 // -----------------------------------------------------------------------------
 //
-// argumentValue - one input argument from the JSON the execution input has for it: a scalar, or (valueRank
-// 1 or more) an array of scalars, as the argument's DataType; NULL: ok, else why not
+// argumentValue - one input argument from the JSON the execution input has for it: a scalar, or (an array
+// argument, argumentIsArray) an array of scalars, as the argument's DataType; NULL: ok, else why not
 //
 static const char* argumentValue(CorNode* valueP, const UA_Argument* argP, UA_Variant* vP)
 {
@@ -2423,7 +2571,7 @@ static const char* argumentValue(CorNode* valueP, const UA_Argument* argP, UA_Va
   if (typeP == NULL)
     return "a DataType this bridge does not convert to";
 
-  if (argP->valueRank < 1)
+  if (argumentIsArray(argP) == false)
   {
     if ((scalarText(valueP, text, sizeof(text)) == false) || (jsonToVariant(text, typeP, vP) == false))
     {

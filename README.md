@@ -79,7 +79,7 @@ the node's class:
   (HasComponent, HasOrderedComponent, HasProperty, Organizes) and handed over as the neutral node tree of
   coraine's [AssetChannels](https://github.com/SEAMWARE/coraine/blob/main/doc/asset-channels.md): Objects
   (`object`, `folder` for a FolderType), Variables (`variable`: value, SourceTimestamp, EngineeringUnits as
-  the UN/CEFACT code), Methods (`method`); a node's type name and TypeDefinition; its HasDictionaryEntry
+  the UN/CEFACT code), Methods (`method`: its arguments and its endpoint, below); a node's type name and TypeDefinition; its HasDictionaryEntry
   targets as its `semanticIds` (a string NodeId - an IRDI, a URI - as the string); its other forward
   references as `references`. Then every Variable of the model is monitored, and each change handed over as
   `{ "values": [ ... ] }`. Which nodes become entities, and how, is the broker's mapping.
@@ -98,10 +98,28 @@ executed by the bridge - the method called on the object (an OPC UA Call):
   "serviceInformation": { "serviceName": "setSpeed" } }
 ```
 
+In an AssetChannel's model each `method` node carries what registering it takes, and coraine registers it
+by itself ([AssetChannels § 4](https://github.com/SEAMWARE/coraine/blob/main/doc/asset-channels.md#4-operations-and-methods-service-execution),
+`COR_FEATURE_ASSET_CHANNEL_SERVICES`) - a service of the entity it is in, named by its BrowseName:
+
+```json
+{ "node": "method", "id": "ns=2;s=P17.Log", "name": "Log",
+  "input":  [ { "name": "lines", "valueType": "xs:string", "array": true } ],
+  "output": [ { "name": "count", "valueType": "xs:unsignedInt" } ],
+  "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Log" }
+```
+
+- **`input`, `output`**: the method's `InputArguments` and `OutputArguments` - the DataType as an XML Schema
+  type (Boolean `xs:boolean`, String `xs:string`, SByte/Byte `xs:byte`/`xs:unsignedByte`, Int16..UInt64
+  `xs:short`..`xs:unsignedLong`, Float `xs:float`, Double `xs:double`), `array` for a ValueRank of
+  dimensions. Another DataType has no `valueType`.
+- **`endpoint`**: the object the method is in, and the method. A method with an input argument of a DataType
+  the bridge does not convert has none - it is not registered, as it could not be called.
+
 - **The input** is an object, a member per input argument by its name (the method's `InputArguments`),
-  each converted to the argument's DataType - a scalar, or an array for an argument of valueRank 1 or more:
-  `{ "speed": 12.5, "ramp": true }`. A missing argument, a member that is no argument, a value that does
-  not fit: the execution fails before anything is called. `id` and `type` are the entity's.
+  each converted to the argument's DataType - a scalar, or an array for an argument of a ValueRank of
+  dimensions (0 or more): `{ "speed": 12.5, "ramp": true }`. A missing argument, a member that is no
+  argument, a value that does not fit: the execution fails before anything is called. `id` and `type` are the entity's.
 - **The output** is an object, each output argument by its name (`OutputArguments`): `{ "previous": 0 }`;
   a method without output arguments has none.
 - **A failure** - the method's StatusCode (`BadInvalidState`), a method the server does not have
@@ -131,8 +149,7 @@ executed by the bridge - the method called on the object (an OPC UA Call):
 
 - A user certificate (X.509 identity token), certificate and trust-list folders, a certificate the
   bridge makes for itself.
-- Registering a model's methods as services by itself (a Service Registration is made by hand), arrays
-  and structured values on a Write, structured method arguments, `channelInfo` keys (a different sampling
+- Arrays and structured values on a Write, structured method arguments, `channelInfo` keys (a different sampling
   interval per endpoint).
 
 ## Building
