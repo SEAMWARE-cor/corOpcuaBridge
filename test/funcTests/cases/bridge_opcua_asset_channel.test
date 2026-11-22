@@ -12,11 +12,15 @@
 #               the unitCode, their SourceTimestamp the observedAt; Unit1 a Relationship
 #   Unit1       an entity of its own (a HydraulicUnitType); its HasEffect reference to the press a
 #               Relationship
-#   Start       a method - nothing yet
+#   Start, SetSpeed, Stop, Log   methods - each node with its arguments and its endpoint
+#               (opcua://<object>/<method>): the broker registers them as services of the press (coraine's
+#               ASSET_CHANNEL_SERVICES), Log's array argument an array in the schema
 #
-# A Variable of the model changes on the server: the press is written again, the pressure 214.
+# A Variable of the model changes on the server: the press is written again, the pressure 214. SetSpeed and
+# Log are invoked through their registrations; an input the schema refuses is refused by the broker (400).
 #
 # REQUIRE_FEATURE: ASSET_CHANNELS
+# REQUIRE_FEATURE: ASSET_CHANNEL_SERVICES
 #
 --NAME--
 opcua bridge - an AssetChannel: an Object browsed into a graph of entities, its Variables' changes written
@@ -60,7 +64,41 @@ echo
 echo
 
 
-echo "04. GET /assetChannels - one model, one value"
+echo "04. The press's methods - Service Registrations the broker made from the model"
+echo "================================================================================"
+B="http://localhost:$OPCUA_PORT/ngsi-ld/v1"
+curl -s "$B/serviceRegistrations" > "$OPCUA_TEST_DIR/regs.json"
+python3 - "$OPCUA_TEST_DIR/regs.json" <<'PY'
+import json, sys
+for r in sorted(json.load(open(sys.argv[1])), key=lambda r: r["serviceInformation"]["serviceName"]):
+    si = r["serviceInformation"]
+    print(si["serviceName"], r["entities"][0]["id"], r["endpoint"])
+    for s in ("inputSchema", "outputSchema"):
+        print("  ", s, json.dumps(si[s]["properties"], sort_keys=True))
+PY
+echo
+echo
+
+
+echo "05. SetSpeed and Log invoked through them - the methods called; a Log line that is no string: 400"
+echo "================================================================================================="
+invoke() {  # invoke <service> <input> - the status, the output (or the error's detail)
+  curl -s -w "\n%{http_code}\n" "$B/entities/urn:ngsi-ld:PressType:Press17/services/$1" -H 'Content-Type: application/json' -d "$2" > "$OPCUA_TEST_DIR/invoke.out"
+  tail -1 "$OPCUA_TEST_DIR/invoke.out"
+  head -n -1 "$OPCUA_TEST_DIR/invoke.out" | python3 -c '
+import json, sys
+b = json.loads(sys.stdin.read())
+print(json.dumps(b.get("detail") if "status" in b else {k: v for k, v in b.items() if k not in ("id", "type")}, sort_keys=True))'
+}
+invoke SetSpeed '{"speed": 12.5, "ramp": true}'
+deviceAwaitWrite "call ns=2;s=P17.SetSpeed" "12.5 true"
+invoke Log '{"lines": ["a", "b", "c"]}'
+invoke Log '{"lines": ["a", 2]}'
+echo
+echo
+
+
+echo "06. GET /assetChannels - one model, one value"
 echo "============================================="
 assetChannels
 echo
@@ -70,7 +108,7 @@ echo
 --TEARDOWN--
 brokerStop
 serverStop
-rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
+rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd" "$OPCUA_TEST_DIR/regs.json" "$OPCUA_TEST_DIR/invoke.out"
 
 --EXPECT--
 01. The press - its type, its meaning, its folder's Variables by their path, a Relationship to its unit
@@ -130,7 +168,34 @@ rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
 }
 
 
-04. GET /assetChannels - one model, one value
+04. The press's methods - Service Registrations the broker made from the model
+================================================================================
+Log urn:ngsi-ld:PressType:Press17 opcua://ns=2;s=Press17/ns=2;s=P17.Log
+   inputSchema {"lines": {"items": {"type": "string"}, "type": "array"}}
+   outputSchema {"count": {"maximum": 4294967295, "minimum": 0, "type": "integer"}}
+SetSpeed urn:ngsi-ld:PressType:Press17 opcua://ns=2;s=Press17/ns=2;s=P17.SetSpeed
+   inputSchema {"ramp": {"type": "boolean"}, "speed": {"type": "number"}}
+   outputSchema {"previous": {"type": "number"}}
+Start urn:ngsi-ld:PressType:Press17 opcua://ns=2;s=Press17/ns=2;s=P17.Start
+   inputSchema {}
+   outputSchema {}
+Stop urn:ngsi-ld:PressType:Press17 opcua://ns=2;s=Press17/ns=2;s=P17.Stop
+   inputSchema {}
+   outputSchema {}
+
+
+05. SetSpeed and Log invoked through them - the methods called; a Log line that is no string: 400
+=================================================================================================
+200
+{"previous": 0}
+call ns=2;s=P17.SetSpeed 12.5 true
+200
+{"count": 3}
+400
+"the service's input: lines[1]: must be of type string"
+
+
+06. GET /assetChannels - one model, one value
 =============================================
 ns=2;s=Press17 available modelsIn=1 valuesIn=1 valuesRefused=0 entitiesWritten=3
 

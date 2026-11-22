@@ -118,22 +118,59 @@ rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
     {
       "node": "method",
       "id": "ns=2;s=P17.Start",
-      "name": "Start"
+      "name": "Start",
+      "input": [],
+      "output": [],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Start"
     },
     {
       "node": "method",
       "id": "ns=2;s=P17.SetSpeed",
-      "name": "SetSpeed"
+      "name": "SetSpeed",
+      "input": [
+        {
+          "name": "speed",
+          "valueType": "xs:double"
+        },
+        {
+          "name": "ramp",
+          "valueType": "xs:boolean"
+        }
+      ],
+      "output": [
+        {
+          "name": "previous",
+          "valueType": "xs:double"
+        }
+      ],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.SetSpeed"
     },
     {
       "node": "method",
       "id": "ns=2;s=P17.Stop",
-      "name": "Stop"
+      "name": "Stop",
+      "input": [],
+      "output": [],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Stop"
     },
     {
       "node": "method",
       "id": "ns=2;s=P17.Log",
-      "name": "Log"
+      "name": "Log",
+      "input": [
+        {
+          "name": "lines",
+          "valueType": "xs:string",
+          "array": true
+        }
+      ],
+      "output": [
+        {
+          "name": "count",
+          "valueType": "xs:unsignedInt"
+        }
+      ],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Log"
     }
   ]
 }
@@ -226,22 +263,59 @@ rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
     {
       "node": "method",
       "id": "ns=2;s=P17.Start",
-      "name": "Start"
+      "name": "Start",
+      "input": [],
+      "output": [],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Start"
     },
     {
       "node": "method",
       "id": "ns=2;s=P17.SetSpeed",
-      "name": "SetSpeed"
+      "name": "SetSpeed",
+      "input": [
+        {
+          "name": "speed",
+          "valueType": "xs:double"
+        },
+        {
+          "name": "ramp",
+          "valueType": "xs:boolean"
+        }
+      ],
+      "output": [
+        {
+          "name": "previous",
+          "valueType": "xs:double"
+        }
+      ],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.SetSpeed"
     },
     {
       "node": "method",
       "id": "ns=2;s=P17.Stop",
-      "name": "Stop"
+      "name": "Stop",
+      "input": [],
+      "output": [],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Stop"
     },
     {
       "node": "method",
       "id": "ns=2;s=P17.Log",
-      "name": "Log"
+      "name": "Log",
+      "input": [
+        {
+          "name": "lines",
+          "valueType": "xs:string",
+          "array": true
+        }
+      ],
+      "output": [
+        {
+          "name": "count",
+          "valueType": "xs:unsignedInt"
+        }
+      ],
+      "endpoint": "opcua://ns=2;s=Press17/ns=2;s=P17.Log"
     }
   ]
 }
