@@ -33,7 +33,7 @@ OPCUA_TEST_DIR="${OPCUA_TEST_DIR:-/tmp/opcua-bridge-test}"
 brokerStart() {
   brokerStop
 
-  "$OPCUA_BROKER" --port "$OPCUA_PORT" --foreground --pretty-print 2 --httpEndpoint "http://localhost:$OPCUA_PORT" \
+  "$OPCUA_BROKER" --port "$OPCUA_PORT" --pretty-print 2 --httpEndpoint "http://localhost:$OPCUA_PORT" \
                  --database ramDB --bridges "$OPCUA_PLUGIN" --bridgeConfig "$OPCUA_TEST_DIR/bridges.json" "$@" \
                  > "$OPCUA_TEST_DIR/broker.log" 2>&1 &
   echo $! > "$OPCUA_TEST_DIR/broker.pid"
