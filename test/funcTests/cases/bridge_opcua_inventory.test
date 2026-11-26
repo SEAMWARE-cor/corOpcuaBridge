@@ -327,7 +327,7 @@ rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
 404
 {
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
-  "title": "Not Found",
+  "title": "Bridge not found",
   "status": 404,
   "detail": "bridge 'opcua': the OPC UA server has no node 'ns=2;s=Nope' (BadNodeIdUnknown)"
 }
@@ -339,7 +339,7 @@ rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
 503
 {
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError",
-  "title": "Service Unavailable",
+  "title": "Bridge inventory unavailable",
   "status": 503,
   "detail": "bridge 'opcua': the OPC UA server did not answer the read of 'ns=2;s=Press17' REGEX(\((BadSecureChannelClosed|BadConnectionClosed)\))"
 }
@@ -351,7 +351,7 @@ rm -f "${OPCUA_TEST_DIR:?}/bridges.json" "$OPCUA_TEST_DIR/server.cmd"
 503
 {
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError",
-  "title": "Service Unavailable",
+  "title": "Bridge inventory unavailable",
   "status": 503,
   "detail": "bridge 'opcua': the OPC UA server opc.tcp://localhost:14840 cannot be reached (BadConnectionRejected)"
 }
